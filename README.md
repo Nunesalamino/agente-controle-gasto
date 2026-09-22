@@ -82,17 +82,28 @@ O sistema atende a três fluxos diferentes, todos passando pela mesma Lambda:
 - **Amazon DynamoDB** — armazenamento dos gastos
 - **Amazon S3** — armazenamento temporário de áudios e imagens
 - **Amazon EventBridge Scheduler** — disparo mensal automatizado
+- **Amazon CloudWatch + SNS** — alarmes de erro e de custo, logs estruturados
 - **AWS IAM** — roles e policies
+- **Terraform** — infraestrutura como código (pasta [`infra/`](./infra))
 - **Telegram Bot API** — canal de entrada e saída de mensagens
+
+## Infraestrutura como código
+
+A pasta [`infra/`](./infra) descreve em Terraform toda a infraestrutura acima — Lambda, API Gateway, DynamoDB, S3, IAM, EventBridge Scheduler e os alarmes do CloudWatch — como ela roda hoje em produção. Não foi aplicada contra os recursos reais (eles foram criados manualmente durante o aprendizado), mas serve como referência fiel e como prática de IaC. Detalhes de como rodar num ambiente separado estão no README daquela pasta.
+
+## Monitoramento e observabilidade
+
+- **Logs estruturados em JSON** na Lambda (função `log_evento`), cobrindo os principais eventos do fluxo — facilita consultas no CloudWatch Logs Insights.
+- **Alarme de erros da Lambda**: dispara se a função lançar 1 ou mais erros em uma janela de 5 minutos, notificando por e-mail via SNS.
+- **Alarme de gastos estimados (billing)**: dispara se os encargos estimados da conta AWS no mês ultrapassarem um valor limite (US$ 5), notificando pelo mesmo canal — importante para não ter surpresa de fatura enquanto o projeto está em teste.
 
 ## Custos estimados
 
-Para o volume de uso pessoal deste projeto, a maior parte dos serviços fica dentro da camada gratuita da AWS. Bedrock, Textract e Transcribe são cobrados por uso (tokens, páginas e segundos, respectivamente), mas com uso pessoal moderado o custo mensal fica na casa de centavos a poucos reais.
+Para o volume de uso pessoal deste projeto, a maior parte dos serviços fica dentro da camada gratuita da AWS. Bedrock, Textract e Transcribe são cobrados por uso (tokens, páginas e segundos, respectivamente), mas com uso pessoal moderado o custo mensal fica na casa de centavos a poucos reais. O alarme de billing (acima) monitora isso automaticamente.
 
 ## Possíveis evoluções futuras
 
-- **Infraestrutura como código** (Terraform ou AWS SAM/CloudFormation)
-- **Monitoramento e observabilidade** (CloudWatch Alarms, logs estruturados)
 - **Testes automatizados**
 - **Pipeline de CI/CD**
 - **Suporte a múltiplos usuários**
+- **Policies IAM mais restritas** (hoje a Lambda usa policies gerenciadas amplas da AWS para Bedrock/Textract/Transcribe/S3; o ideal seria restringir só às ações necessárias)

@@ -7,3 +7,5 @@ project_name       = "agente-gastos"
 telegram_bot_token = "COLE_AQUI_O_TOKEN_DO_SEU_BOT"
 telegram_chat_id   = "COLE_AQUI_SEU_CHAT_ID"
 s3_bucket_name     = "agente-gastos-midia-seu-nome" # precisa ser único globalmente no S3
+alert_email        = "seu-email@exemplo.com"
+billing_alarm_threshold = 5

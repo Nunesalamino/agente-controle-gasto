@@ -1,8 +1,10 @@
 # Infraestrutura como código (Terraform)
 
-Esta pasta descreve, em Terraform, a mesma infraestrutura que hoje roda em produção configurada manualmente pelo console da AWS: Lambda, API Gateway, DynamoDB, S3, IAM e o EventBridge Scheduler do resumo automático mensal.
+Esta pasta descreve, em Terraform, a mesma infraestrutura que hoje roda em produção configurada manualmente pelo console da AWS: Lambda, API Gateway, DynamoDB, S3, IAM, o EventBridge Scheduler do resumo automático mensal e os alarmes de monitoramento (erros da Lambda e gastos estimados/billing) no CloudWatch.
 
-**Importante:** este código é uma descrição fiel da infraestrutura para fins de portfólio e aprendizado — **ele não foi aplicado** contra os recursos reais em produção, e não deve ser rodado (`terraform apply`) apontando para a mesma conta/região sem antes ajustar os nomes dos recursos (a tabela `Gastos` e a função `agente-gastos-ingestao-gastos`, por exemplo, colidiriam com os recursos que já existem).
+**Importante:** este código é uma descrição fiel da infraestrutura para fins de portfólio e aprendizado — **ele não foi aplicado** contra os recursos reais em produção, e não deve ser rodado (`terraform apply`) apontando para a mesma conta/região sem antes ajustar os nomes dos recursos (a tabela `Gastos`, a função `agente-gastos-ingestao-gastos` e o alarme `alerta-gastos-billing`, por exemplo, colidiriam com os recursos que já existem).
+
+O alarme de billing usa um provider da AWS separado, fixo em `us-east-1` — é a única região onde a métrica `AWS/Billing` existe, independentemente de onde os outros recursos rodam. Ele também depende de "Receber alertas de faturamento do CloudWatch" estar habilitado em Faturamento e Gerenciamento de Custos → Preferências de faturamento, o que é uma configuração de conta, não algo que o Terraform consiga habilitar.
 
 ## Estrutura
 
@@ -16,6 +18,7 @@ Esta pasta descreve, em Terraform, a mesma infraestrutura que hoje roda em produ
 | `lambda.tf` | Função Lambda, empacotando `lambda_ingestao.py` |
 | `api_gateway.tf` | HTTP API que recebe o webhook do Telegram |
 | `eventbridge.tf` | Agendamento do resumo mensal automático |
+| `cloudwatch.tf` | Alarmes de monitoramento: erros da Lambda e gastos estimados (billing) |
 | `outputs.tf` | Valores úteis após o `apply` (ex: URL do webhook) |
 
 ## Como usar (se quiser testar num ambiente separado)

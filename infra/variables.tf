@@ -25,3 +25,14 @@ variable "s3_bucket_name" {
   description = "Nome do bucket S3 usado para armazenar áudios e imagens recebidos (precisa ser globalmente único)."
   type        = string
 }
+
+variable "alert_email" {
+  description = "E-mail que recebe os alarmes do CloudWatch (erros da Lambda e gastos estimados da conta)."
+  type        = string
+}
+
+variable "billing_alarm_threshold" {
+  description = "Valor limite (em USD) de encargos estimados no mês a partir do qual o alarme de billing dispara."
+  type        = number
+  default     = 5
+}
