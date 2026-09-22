@@ -50,6 +50,24 @@ Texto: "{texto}"
 
 
 # ---------------------------------------------------------------------------
+# Logs estruturados
+# ---------------------------------------------------------------------------
+
+def log_evento(evento, **detalhes):
+    """
+    Loga um evento em formato JSON (uma linha por evento) no CloudWatch Logs.
+    Isso facilita consultar depois no CloudWatch Logs Insights, por exemplo:
+    "quantos gastos foram ignorados por falta de valor essa semana?"
+    """
+    registro = {
+        "evento": evento,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        **detalhes,
+    }
+    print(json.dumps(registro, default=str))
+
+
+# ---------------------------------------------------------------------------
 # Bedrock
 # ---------------------------------------------------------------------------
 
@@ -345,6 +363,7 @@ def lambda_handler(event, context):
                 ano_mes = extrair_ano_mes_do_comando(mensagem["text"])
                 resumo = gerar_resumo(ano_mes)
                 telegram_enviar_mensagem(chat_id, formatar_resumo(resumo))
+                log_evento("resumo_solicitado", chat_id=chat_id, ano_mes=ano_mes, quantidade=resumo["quantidade"])
                 return {"statusCode": 200, "body": json.dumps({"status": "ok", "resumo": ano_mes})}
 
             texto, fonte, chat_id = processar_mensagem_telegram(mensagem)
@@ -354,6 +373,7 @@ def lambda_handler(event, context):
                     chat_id,
                     "Não entendi esse tipo de mensagem. Manda texto, áudio ou foto do comprovante.",
                 )
+                log_evento("mensagem_nao_reconhecida", chat_id=chat_id)
                 return {"statusCode": 200, "body": json.dumps({"status": "ignorado"})}
 
             dados = extrair_gasto(texto)
@@ -365,10 +385,19 @@ def lambda_handler(event, context):
                     "Se foi sem querer, pode ignorar. Se era pra registrar um gasto, tenta mandar de "
                     "novo deixando o valor bem claro.",
                 )
+                log_evento("gasto_ignorado_sem_valor", chat_id=chat_id, fonte=fonte)
                 return {"statusCode": 200, "body": json.dumps({"status": "ignorado_sem_valor"})}
 
             item = salvar_gasto(dados, texto, fonte=fonte)
             telegram_enviar_mensagem(chat_id, formatar_confirmacao(item))
+            log_evento(
+                "gasto_registrado",
+                chat_id=chat_id,
+                fonte=fonte,
+                valor=item.get("valor"),
+                categoria=item.get("categoria"),
+                forma_pagamento=item.get("formaPagamento"),
+            )
 
         else:
             # --- fluxo de teste manual (sem Telegram) / disparo automático do EventBridge ---
@@ -380,6 +409,7 @@ def lambda_handler(event, context):
                 resumo = gerar_resumo(ano_mes)
                 if TELEGRAM_CHAT_ID:
                     telegram_enviar_mensagem(TELEGRAM_CHAT_ID, formatar_resumo(resumo))
+                log_evento("resumo_automatico_enviado", ano_mes=ano_mes, quantidade=resumo["quantidade"])
                 return {
                     "statusCode": 200,
                     "body": json.dumps({"status": "ok", "resumo_automatico": ano_mes}, default=str),
@@ -419,12 +449,23 @@ def lambda_handler(event, context):
             item = salvar_gasto(dados, texto, fonte=fonte)
 
     except json.JSONDecodeError:
+        log_evento("erro_json_invalido", chat_id=chat_id)
         if chat_id:
             telegram_enviar_mensagem(chat_id, "Não consegui entender essa mensagem, tenta de novo com outras palavras.")
         return {
             "statusCode": 500,
             "body": json.dumps({"erro": "O modelo não retornou um JSON válido"}),
         }
+
+    except Exception as e:
+        # Qualquer outro erro inesperado (ex: falha de permissão, timeout de outro
+        # serviço, etc.) é logado de forma estruturada e depois relançado. Relançar
+        # é importante: é isso que faz a invocação contar como "Errors" na métrica
+        # do CloudWatch, que é o que aciona o alarme configurado no console.
+        log_evento("erro_inesperado", chat_id=chat_id, tipo_erro=type(e).__name__, mensagem=str(e))
+        if chat_id:
+            telegram_enviar_mensagem(chat_id, "Deu um erro inesperado aqui do meu lado, tenta de novo em instantes.")
+        raise
 
     return {
         "statusCode": 200,
