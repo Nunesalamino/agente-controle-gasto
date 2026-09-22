@@ -10,32 +10,29 @@ O projeto foi pensado originalmente para rodar sobre o WhatsApp, mas migrou para
 
 ## Arquitetura
 
-```
-Usuário (Telegram)
-      |
-      v
-API Gateway (HTTP API, rota ANY /)
-      |
-      v
-AWS Lambda "ingestao-gastos" (Python 3.13)
-      |
-      |-- texto --------------------------> Bedrock (Nova Micro)
-      |-- foto  -> S3 -> Textract (OCR) --> Bedrock (Nova Micro)
-      |-- áudio -> S3 -> Transcribe -----> Bedrock (Nova Micro)
-      |
-      v
-DynamoDB (tabela Gastos)
-      |
-      v
-Resposta de volta pro Telegram (confirmação ou resumo)
+```mermaid
+flowchart TD
+    U[Usuário no Telegram]
+    AG[API Gateway<br/>HTTP API]
+    L[["Lambda ingestao-gastos<br/>(Python 3.13)"]]
+    BR[Bedrock<br/>Nova Micro]
+    S3F[S3]
+    TXT[Textract<br/>OCR]
+    S3A[S3]
+    TRC[Transcribe]
+    DDB[(DynamoDB<br/>tabela Gastos)]
+    EB[EventBridge Scheduler<br/>dia 1, 09:00 America/Sao_Paulo]
 
-EventBridge Scheduler (cron, dia 1 de cada mês, 09:00 America/Sao_Paulo)
-      |
-      v
-Invoca a mesma Lambda com {"tipo": "resumo_automatico"}
-      |
-      v
-DynamoDB (consulta) -> Telegram (mensagem de resumo)
+    U -->|mensagem| AG --> L
+    EB -->|"{tipo: resumo_automatico}"| L
+
+    L -->|texto| BR
+    L -->|foto| S3F --> TXT --> BR
+    L -->|áudio| S3A --> TRC --> BR
+
+    BR --> DDB
+    DDB -->|consulta / gravação| L
+    L -->|confirmação ou resumo| U
 ```
 
 A Lambda é o único ponto de orquestração do sistema: recebe o evento (seja do API Gateway, seja do EventBridge), decide o que fazer e chama os outros serviços da AWS conforme o caso. Não há fila, orquestrador ou máquina de estados: para o volume de uso (pessoal, poucas mensagens por dia), uma função síncrona dá conta do fluxo inteiro sem complexidade extra.
