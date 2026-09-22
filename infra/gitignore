@@ -1,0 +1,10 @@
+# Segredos e valores reais — nunca versionar
+terraform.tfvars
+
+# Arquivos que o Terraform gera localmente
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+crash.log
+lambda_ingestao.zip
